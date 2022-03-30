@@ -62,6 +62,8 @@ let authTokenPlayer = "";
 let authTokenObserver = "";
 let authTokenArtnet = "";
 
+let artnet = require('artnet')(options);
+
 // Bomb timer in the CS:GO server, needs to be modified manually
 const bombTimer = 40;
 
@@ -72,13 +74,13 @@ let sideAtLeft = "";
 
 /**
  * Checks if host.json and config.json files exist.
- * 
- * host.json file has configuration for the server itself. It holds 
+ *
+ * host.json file has configuration for the server itself. It holds
  * IP address and port where to start listening requests from.
- * 
+ *
  * config.json file has configuration for ArtNet signal and auth tokens.
- * 
- * If host.json file does not exist, the App tells the user to run 
+ *
+ * If host.json file does not exist, the App tells the user to run
  * "npm run init" first, where the host.json file will be made, and the
  * server won't launch.
  */
@@ -95,7 +97,7 @@ function checkExistingFiles() {
     } catch (err) {
         console.error(err);
     }
-    
+
     try {
         if (fs.existsSync(configPath)) {
             config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
@@ -157,8 +159,8 @@ router.get('/settings', (req, res) => {
 
 /**
  * Handles the POST requests from the button clicks. When a button click
- * and the request has been received, it first validates the request 
- * (with an auth key), and then sends an artnet signal to the channel that 
+ * and the request has been received, it first validates the request
+ * (with an auth key), and then sends an artnet signal to the channel that
  * was given in the request body (depending on the button).
  */
 router.post('/clicked', (req, res) => {
@@ -166,17 +168,18 @@ router.post('/clicked', (req, res) => {
     const CHANNEL = req.body.channel;
 
 
-    if (AUTH === authTokenArtnet) { 
+    if (AUTH === authTokenArtnet) {
         res.writeHead(200, { "Content-Type": "text/html" });
 
-        let artnet = require('artnet')(options);
+
         console.log('ArtNet sent');
         console.log('Uni: '+UNIVERSE);
         console.log('Chan: '+CHANNEL);
 
-        //artnet.set(UNIVERSE, CHANNEL, 255, function (err, res) {
-	//    artnet.close();
-        //});       
+        artnet.set(UNIVERSE, CHANNEL, 255, function (err, res) {
+          artnet.set(UNIVERSE, CHANNEL, 0, function (err, res) {
+          });
+        });
 
         res.end('ok');
     } else {
@@ -261,7 +264,8 @@ function processGameEvents(gsidata) {
     //     return '';
     // }
 
-    const data = gsidata.gsidata;
+
+    const data = gsidata;
     const firstseat = null;
 
     let date = '';
@@ -271,13 +275,13 @@ function processGameEvents(gsidata) {
     } catch (exception) {
         date = new Date();
     }
-    
+
     let output = '';
 
     if (!roundOver) {
         output += detectGameEvent(data);
     } else if (!onFreezeTime) {
-        output += detectFreezeTime(data);    
+        output += detectFreezeTime(data);
     } else {
         output += detectGoingLive(data, firstseat);
     }
@@ -299,7 +303,7 @@ function processGameEvents(gsidata) {
 //     const players = data.allplayers;
 
 //     let output = '';
-    
+
 //     try {
 //         Object.keys(players).forEach(function(key) {
 //             const player = players[key];
@@ -313,7 +317,7 @@ function processGameEvents(gsidata) {
 //                         output += firstSideT();
 //                     }
 //                 }
-//             }            
+//             }
 //         });
 //     } catch (err) {
 //         console.log(err);
@@ -338,7 +342,7 @@ function processGameEvents(gsidata) {
 
 /**
  * Called if round is over. Checks when the round starts and returns indication of that.
- * 
+ *
  * @param {Object} data - The payload from CS:GO observer as a JSON object
  * @return {String} - Indication of going live when going live.
  */
@@ -352,12 +356,12 @@ function detectGoingLive(data, firstseat) {
         output = goLive(data);
     }
 
-    return output; 
+    return output;
 }
 
 function detectFreezeTime(data) {
     let output = '';
-    
+
     if (readProperty(data, 'round.phase') === "freezetime") {
         onFreezeTime = true;
         output = freezeTime(data);
@@ -368,7 +372,7 @@ function detectFreezeTime(data) {
 
 /**
  * Checks if any of the events we're interested about happened.
- * 
+ *
  * @param {object} data - The payload from CS:GO observer as a JSON object
  */
 function detectGameEvent(data) {
@@ -378,7 +382,7 @@ function detectGameEvent(data) {
         if (readProperty(data, 'map.team_ct.score') !== readProperty(data, 'map.team_t.score')) {
 	        output += gameOver();
             roundOver = true;
-	    } 
+	    }
     } else if (readProperty(data, 'round.phase') === "over") {
         clearTimeout(bombTimeout);
         output += checkWinningTeam(data);
@@ -397,7 +401,7 @@ function detectGameEvent(data) {
 
 /**
  * Checks which team won the round and checks if either bomb defusal or explosion happened as well.
- * 
+ *
  * @param {String} winningTeam - The team which won.
  */
 function checkWinningTeam(data) {
@@ -418,12 +422,12 @@ function checkWinningTeam(data) {
 
 /**
  * Sends an artnet signal to channel one of the defined universe when bomb was planted.
- * 
+ *
  * @return {String} - indication to console that bomb plant was detected.
  */
-function bombPlanted() {    
+function bombPlanted() {
     bombTimeout = setTimeout(() => {
-        console.log(new Date() + " " + bombExploded());   
+        console.log(new Date() + " " + bombExploded());
     }, (bombTimer * 1000));
 
     return "Bomb planted";
@@ -431,101 +435,117 @@ function bombPlanted() {
 
 /**
  * Sends an artnet signal to channel two of the defined universe when bomb was defused.
- * 
+ *
  * @return {String} - indication to console that bomb defusal was detected.
  */
 function bombDefused() {
-    let artnet = require('artnet')(options);
 
     clearTimeout(bombTimeout);
 
     artnet.set(UNIVERSE, 2, 255, function (err, res) {
-        artnet.close();
     });
-    
+    setTimeout(function () {
+      artnet.set(UNIVERSE, 2, 0, function (err, res) {
+      });
+    }, 3000);
+
     return "Bomb defused";
 }
 
 /**
  * Sends an artnet signal to channel three of the defined universe when bomb was defused.
- * 
+ *
  * @return {String} - indication to console that bomb explosion was detected.
  */
 function bombExploded() {
-    let artnet = require('artnet')(options);
 
     artnet.set(UNIVERSE, 3, 255, function (err, res) {
-        artnet.close();
     });
-    
+    setTimeout(function () {
+      artnet.set(UNIVERSE, 3, 0, function (err, res) {
+      });
+    }, 3000);
+
     return "Bomb exploded";
 }
 
 /**
  * Sends an artnet signal to channel four of the defined universe when Counter-Terrorists win.
- * 
+ *
  * @return {String} - indication to console that CTs victory was detected.
  */
 function CTWin() {
-    let artnet = require('artnet')(options);
 
     artnet.set(UNIVERSE, 4, 255, function (err, res) {
-        artnet.close();
     });
-    
+    setTimeout(function () {
+      artnet.set(UNIVERSE, 4, 0, function (err, res) {
+      });
+    }, 3000);
+
     return "CTs win";
 }
 
 /**
  * Sends an artnet signal to channel five of the defined universe when Terrorists win.
- * 
+ *
  * @return {String} - indication to console that Ts victory was detected.
  */
 function TWin() {
-    let artnet = require('artnet')(options);
 
     artnet.set(UNIVERSE, 5, 255, function (err, res) {
-        artnet.close();
     });
-    
+    setTimeout(function () {
+      artnet.set(UNIVERSE, 5, 0, function (err, res) {
+      });
+    }, 3000);
+
     return "Ts win";
 }
 
 function freezeTime() {
-    let artnet = require('artnet')(options);
 
     artnet.set(UNIVERSE, 6, 255, function (err, res) {
-        artnet.close();
+    });
+    artnet.set(UNIVERSE, 7, 0, function (err, res) {
     });
 
     return "Freeze time!";
 }
 
 function goLive() {
-    let artnet = require('artnet')(options);
 
-    artnet.set(UNIVERSE, 7, 0, function (err, res) {
-        artnet.close();
+    artnet.set(UNIVERSE, 6, 0, function (err, res) {
+    });
+    artnet.set(UNIVERSE, 8, 0, function (err, res) {
+    });
+    artnet.set(UNIVERSE, 7, 255, function (err, res) {
     });
 
     return "Going live!";
 }
 
 function gameOver() {
-    let artnet = require('artnet')(options);
-    
+
+    artnet.set(UNIVERSE, 6, 0, function (err, res) {
+    });
+    artnet.set(UNIVERSE, 8, 0, function (err, res) {
+    });
+    artnet.set(UNIVERSE, 7, 0, function (err, res) {
+    });
     artnet.set(UNIVERSE, 8, 255, function (err, res) {
-	    artnet.close();
+
     });
 
     return "Game over";
 }
 
 function firstSideCT() {
-    let artnet = require('artnet')(options);
 
     artnet.set(UNIVERSE, 10, 255, function (err, res) {
-        artnet.close();
+      artnet.set(UNIVERSE, 10, 0, function (err, res) {
+
+      });
     });
 
     return "Changing first side to CT";
@@ -535,7 +555,9 @@ function firstSideT() {
     let artnet = require ('artnet')(options);
 
     artnet.set(UNIVERSE, 11, 255, function (err, res) {
-        artnet.close();
+      artnet.set(UNIVERSE, 11, 0, function (err, res) {
+
+      });
     });
 
     return "Changing first side to T";
