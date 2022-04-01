@@ -33,13 +33,8 @@ function createHostConfig() {
         port: PORT
     }
 
-    fs.writeFile("./src/config/host.json", JSON.stringify(hostObj, null, 2), (err) => {
-        if (err) {
-            console.error(err);
-            return;
-        };
-        console.log(colors.green("Host settings configured."));
-    });
+    fs.writeFileSync("./host.json", JSON.stringify(hostObj));
+    console.log(colors.green("Host settings configured."));
 }
 
 /**
@@ -63,7 +58,7 @@ if (headless == 'y') {
         testertoken: Math.random().toString(36).substring(2, 12) + Math.random().toString(36).substring(2, 12)
     }
 
-    fs.writeFile("./src/config/config.json", JSON.stringify(artnetObj, null, 2), (err) => {
+    fs.writeFile("./config.json", JSON.stringify(artnetObj, null, 2), (err) => {
         if (err) {
             console.error(err);
             return;

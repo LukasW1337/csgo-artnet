@@ -8,10 +8,6 @@ yarn-error.log*
 # Payload log file
 out.txt
 
-# Configuration files
-config.json
-host.json
-
 # Runtime data
 pids
 *.pid

@@ -110,7 +110,7 @@ function checkExistingFiles() {
             authTokenObserver = config.observertoken;
             authTokenArtnet = config.testertoken;
         }
-      } catch(err) {
+    } catch (err) {
         console.error(err)
     }
 
@@ -125,7 +125,7 @@ router.use(express.static('public'));
 /**
  * Configure the router handler to use bodyParser to parse the req.body
  */
-router.use(bodyParser.urlencoded({ extended: true}));
+router.use(bodyParser.urlencoded({ extended: true }));
 router.use(bodyParser.json());
 
 /**
@@ -150,7 +150,7 @@ router.get('/settings', (req, res) => {
             authTokenObserver = config.observertoken;
             authTokenArtnet = config.testertoken;
         }
-      } catch(err) {
+    } catch (err) {
         console.error(err)
     }
 
@@ -162,7 +162,51 @@ router.get('/settings', (req, res) => {
  * and the request has been received, it first validates the request
  * (with an auth key), and then sends an artnet signal to the channel that
  * was given in the request body (depending on the button).
+ * 
+ * 
+ * 
+ * 
+ * 1 Runden starter
+2 Bomben er plantet
+3 Bomben er sprunget
+4 Bomben er defused
+5 Runde slut
+6 CT Win
+7 T Win
+8 Freezetime/Pause
+9 Kamp slut
+
+
  */
+
+let sendObject = {
+    roundStart: 0,
+    bombPlanted: 0,
+    bombExplode: 0,
+    bombDefused: 0,
+    roundEnd: 0,
+    ctWin: 0,
+    tWin: 0,
+    freezeTime: 0,
+    matchover: 0
+}
+
+setInterval(() => {
+    artnet.set([sendObject.roundStart, sendObject.bombPlanted, sendObject.bombExplode, sendObject.bombDefused, sendObject.roundEnd, sendObject.ctWin, sendObject.tWin, sendObject.freezeTime, sendObject.matchover], function (err, res) {
+        sendObject = {
+            roundStart: 0,
+            bombPlanted: 0,
+            bombExplode: 0,
+            bombDefused: 0,
+            roundEnd: 0,
+            ctWin: 0,
+            tWin: 0,
+            freezeTime: 0,
+            matchover: 0
+        }
+    })
+}, 500)
+
 router.post('/clicked', (req, res) => {
     const AUTH = req.body.auth;
     const CHANNEL = req.body.channel;
@@ -173,13 +217,10 @@ router.post('/clicked', (req, res) => {
 
 
         console.log('ArtNet sent');
-        console.log('Uni: '+UNIVERSE);
-        console.log('Chan: '+CHANNEL);
+        console.log('Uni: ' + UNIVERSE);
+        console.log('Chan: ' + CHANNEL);
 
-        artnet.set(UNIVERSE, CHANNEL, 255, function (err, res) {
-          artnet.set(UNIVERSE, CHANNEL, 0, function (err, res) {
-          });
-        });
+        sendObject[CHANNEL] = 255
 
         res.end('ok');
     } else {
@@ -188,12 +229,22 @@ router.post('/clicked', (req, res) => {
     }
 });
 
+
+function artNetsender(CHANNEL) {
+    artnet.set(UNIVERSE, CHANNEL, 255, function (err, res) {
+        setTimeout(() => {
+            artnet.set(UNIVERSE, CHANNEL, 0, function (err, res) {
+            })
+        }, 500)
+    });
+}
+
 /**
  * Handles the POST request from the form submit. Pushes everything
  * in the request to an object and writes the object to a .json file.
  */
 router.post('/config', (req, res) => {
-    res.writeHead(200, { "Content-Type": "text/html"});
+    res.writeHead(200, { "Content-Type": "text/html" });
 
     let config = {
         ip: req.body.ipaddress,
@@ -230,7 +281,7 @@ let aceCalled = false;
  */
 let onFreezeTime = true;
 
-app.post('/csgo', function(req, res, next) {
+app.post('/csgo', function (req, res, next) {
 
     res.writeHead(200, { 'Content-Type': 'text/html' });
 
@@ -347,7 +398,7 @@ function processGameEvents(gsidata) {
  * @return {String} - Indication of going live when going live.
  */
 function detectGoingLive(data, firstseat) {
-    let output ='';
+    let output = '';
 
     if (readProperty(data, 'round.phase') === "live") {
         roundOver = false;
@@ -380,9 +431,9 @@ function detectGameEvent(data) {
 
     if (readProperty(data, 'map.phase') === "gameover") {
         if (readProperty(data, 'map.team_ct.score') !== readProperty(data, 'map.team_t.score')) {
-	        output += gameOver();
+            output += gameOver();
             roundOver = true;
-	    }
+        }
     } else if (readProperty(data, 'round.phase') === "over") {
         clearTimeout(bombTimeout);
         output += checkWinningTeam(data);
@@ -410,11 +461,11 @@ function checkWinningTeam(data) {
         output += CTWin();
 
         if (readProperty(data, 'round.bomb') === "defused") {
-            output += ", "+bombDefused();
+            output += ", " + bombDefused();
         }
     } else {
         if (readProperty(data, 'round.bomb') !== "exploded") {
-	        output += TWin();
+            output += TWin();
         }
     }
     return output;
@@ -429,7 +480,7 @@ function bombPlanted() {
     bombTimeout = setTimeout(() => {
         console.log(new Date() + " " + bombExploded());
     }, (bombTimer * 1000));
-
+    sendObject.bombPlanted = 255
     return "Bomb planted";
 }
 
@@ -442,12 +493,7 @@ function bombDefused() {
 
     clearTimeout(bombTimeout);
 
-    artnet.set(UNIVERSE, 2, 255, function (err, res) {
-    });
-    setTimeout(function () {
-      artnet.set(UNIVERSE, 2, 0, function (err, res) {
-      });
-    }, 3000);
+    sendObject.bombDefused = 255
 
     return "Bomb defused";
 }
@@ -459,12 +505,7 @@ function bombDefused() {
  */
 function bombExploded() {
 
-    artnet.set(UNIVERSE, 3, 255, function (err, res) {
-    });
-    setTimeout(function () {
-      artnet.set(UNIVERSE, 3, 0, function (err, res) {
-      });
-    }, 3000);
+    sendObject.bombExplode = 255
 
     return "Bomb exploded";
 }
@@ -475,13 +516,8 @@ function bombExploded() {
  * @return {String} - indication to console that CTs victory was detected.
  */
 function CTWin() {
-
-    artnet.set(UNIVERSE, 4, 255, function (err, res) {
-    });
-    setTimeout(function () {
-      artnet.set(UNIVERSE, 4, 0, function (err, res) {
-      });
-    }, 3000);
+    sendObject.roundEnd = 255
+    sendObject.ctWin = 255
 
     return "CTs win";
 }
@@ -492,50 +528,29 @@ function CTWin() {
  * @return {String} - indication to console that Ts victory was detected.
  */
 function TWin() {
-
-    artnet.set(UNIVERSE, 5, 255, function (err, res) {
-    });
-    setTimeout(function () {
-      artnet.set(UNIVERSE, 5, 0, function (err, res) {
-      });
-    }, 3000);
+    sendObject.roundEnd = 255
+    sendObject.tWin = 255
 
     return "Ts win";
 }
 
 function freezeTime() {
 
-    artnet.set(UNIVERSE, 6, 255, function (err, res) {
-    });
-    artnet.set(UNIVERSE, 7, 0, function (err, res) {
-    });
+    sendObject.freezeTime = 255
 
     return "Freeze time!";
 }
 
 function goLive() {
 
-    artnet.set(UNIVERSE, 6, 0, function (err, res) {
-    });
-    artnet.set(UNIVERSE, 8, 0, function (err, res) {
-    });
-    artnet.set(UNIVERSE, 7, 255, function (err, res) {
-    });
+    sendObject.roundStart = 255
 
     return "Going live!";
 }
 
 function gameOver() {
 
-    artnet.set(UNIVERSE, 6, 0, function (err, res) {
-    });
-    artnet.set(UNIVERSE, 8, 0, function (err, res) {
-    });
-    artnet.set(UNIVERSE, 7, 0, function (err, res) {
-    });
-    artnet.set(UNIVERSE, 8, 255, function (err, res) {
-
-    });
+    sendObject.matchover = 255
 
     return "Game over";
 }
@@ -543,21 +558,21 @@ function gameOver() {
 function firstSideCT() {
 
     artnet.set(UNIVERSE, 10, 255, function (err, res) {
-      artnet.set(UNIVERSE, 10, 0, function (err, res) {
+        artnet.set(UNIVERSE, 10, 0, function (err, res) {
 
-      });
+        });
     });
 
     return "Changing first side to CT";
 }
 
 function firstSideT() {
-    let artnet = require ('artnet')(options);
+    let artnet = require('artnet')(options);
 
     artnet.set(UNIVERSE, 11, 255, function (err, res) {
-      artnet.set(UNIVERSE, 11, 0, function (err, res) {
+        artnet.set(UNIVERSE, 11, 0, function (err, res) {
 
-      });
+        });
     });
 
     return "Changing first side to T";
@@ -592,7 +607,7 @@ app.use('/', router);
 
 if (checkExistingFiles()) {
     app.listen(PORT, HOST);
-    console.log('Listening at '+HOST+":"+PORT);
+    console.log('Listening at ' + HOST + ":" + PORT);
 } else {
     console.error("Please run \"npm run setup\"");
 }
