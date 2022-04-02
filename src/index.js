@@ -62,8 +62,6 @@ let authTokenPlayer = "";
 let authTokenObserver = "";
 let authTokenArtnet = "";
 
-let artnet = require('artnet')(options);
-
 // Bomb timer in the CS:GO server, needs to be modified manually
 const bombTimer = 40;
 
@@ -162,10 +160,10 @@ router.get('/settings', (req, res) => {
  * and the request has been received, it first validates the request
  * (with an auth key), and then sends an artnet signal to the channel that
  * was given in the request body (depending on the button).
- * 
- * 
- * 
- * 
+ *
+ *
+ *
+ *
  * 1 Runden starter
 2 Bomben er plantet
 3 Bomben er sprunget
@@ -605,8 +603,10 @@ function readProperty(container, propertyPath) {
 
 app.use('/', router);
 
+let artnet
 if (checkExistingFiles()) {
     app.listen(PORT, HOST);
+    artnet = require('artnet')(options);
     console.log('Listening at ' + HOST + ":" + PORT);
 } else {
     console.error("Please run \"npm run setup\"");
